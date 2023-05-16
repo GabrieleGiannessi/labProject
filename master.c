@@ -31,6 +31,7 @@
 typedef struct{
     Queue_t* q; 
     pthread_mutex_t* mtx;
+    int sfd; //socket file descriptor del client
 }arg_t; 
 
 
@@ -153,9 +154,39 @@ void pathVisit(char* dir, Queue_t* q){
 
 //client
 void* thread_worker(void* arg){
-    
+    /**thread che rappresenta un client: richiede connessione al server tramite i dati della bind, invia i messaggi da far stampare al server e poi
+    * e poi chiude la connessione chiudendo il socket 
+    */
+   
     arg_t* a = (arg_t*) arg;
-    Queue_t* q = a->q;  
+    Queue_t* q = a->q;
+    int sfd = (int) a->sfd; 
+    while (1){
+        pthread_mutex_lock(a->mtx);
+        char* file = (char*) pop (q); 
+
+        if (strcmp (file, "fine") == 0){ 
+            pthread_mutex_unlock(a->mtx); 
+            break;
+        }   
+
+        char* line = elaboraDati (file);
+        write (sfd, line, (strlen(line)+1)*sizeof(char)); //messaggio al collector 
+        read (sfd, line, (strlen(line)+1)*sizeof(char)); //leggo il messaggio dal server
+        pthread_mutex_unlock(a->mtx); 
+        free(line); 
+    }
+
+    return NULL;  
+}
+
+int main (int argc, char** argv){
+
+    if (argc != 3){
+        fprintf (stdout, "Numeri di parametri non corretto\n");
+        exit(EXIT_FAILURE); 
+    }
+    
     int server = socket (AF_INET,SOCK_STREAM,0);
     struct sockaddr_in serverAddr;
     serverAddr.sin_family=AF_INET; 
@@ -169,46 +200,6 @@ void* thread_worker(void* arg){
         exit(EXIT_FAILURE); 
     }
 
-    while (1){
-        pthread_mutex_lock(a->mtx);
-        char* file = (char*) pop (q); 
-
-        if (strcmp (file, "fine") == 0){ 
-            pthread_mutex_unlock(a->mtx); 
-            break;
-        }   
-        //printf ("%ld ha preso dalla coda il file %s\n", pthread_self(),file); 
-        //preso il nome del file, lo apro e leggo il su contenuto, poi lo mando al collector tramite socket
-        char* line = elaboraDati (file);
-        write (server, line, (strlen(line)+1)*sizeof(char)); //messaggio al collector 
-        read (server, line, (strlen(line)+1)*sizeof(char)); 
-         pthread_mutex_unlock(a->mtx);
-        //printf ("%s", line); 
-        free(line); 
-    }
-    close (server); 
-    pthread_exit(NULL); 
-}
-
-int main (int argc, char** argv){
-
-    if (argc != 3){
-        fprintf (stdout, "Numeri di parametri non corretto\n");
-        exit(EXIT_FAILURE); 
-    }
-
-    pid_t pid; 
-    if ((pid = fork()) == -1){
-        perror ("Cannot fork"); 
-        exit (EXIT_FAILURE); 
-    }
-
-    if (pid == 0){
-         execv("c.out", argv);
-    }
- 
-    printf ("n\tavg\tdev\tfile\n"); 
-
     int workers = atoi(argv[2]); 
     pthread_t tid[workers]; 
     Queue_t* q; 
@@ -217,12 +208,12 @@ int main (int argc, char** argv){
     q = initQueue();
  
     char* dir = argv[1];    
-     pathVisit(dir, q); //inserimento del nome dei file dentro la coda
-     for (int i = 0; i < workers; i++){
+    pathVisit(dir, q); //inserimento del nome dei file dentro la coda
+    for (int i = 0; i < workers; i++){
         push(q, "fine");
-     }
-         
-    arg_t arg = {q,mtx};
+    }
+
+    arg_t arg = {q,mtx,server};
 
     //workers
     for (int i = 0; i < workers; i++){
@@ -238,6 +229,7 @@ int main (int argc, char** argv){
     }
 
     deleteQueue(q);
-    pthread_mutex_destroy(mtx);  
+    pthread_mutex_destroy(mtx); 
+    close (server); 
     return 0; 
 }
