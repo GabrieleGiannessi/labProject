@@ -1,4 +1,5 @@
 #include "unboundedqueue.h"
+#include "util.h"
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -187,18 +188,13 @@ int main (int argc, char** argv){
         exit(EXIT_FAILURE); 
     }
     
-    int server = socket (AF_INET,SOCK_STREAM,0);
-    struct sockaddr_in serverAddr;
-    serverAddr.sin_family=AF_INET; 
-    serverAddr.sin_port=htons(1111);
-    serverAddr.sin_addr.s_addr=inet_addr("172.27.68.197");
-    int conn = 0; 
-
-    while ((conn = connect(server,(struct sockaddr*)&serverAddr, sizeof(serverAddr))) == -1 && errno == ENOENT){sleep(1);};
-    if (conn == -1){
-        printf ("errore di connessione\n"); 
+   /* pid_t pid; 
+    SYSCALL_EXIT (fork, pid, fork(), "sulla fork"); 
+    if (pid == 0){
+        execv("c.out", argv); 
+        perror ("cannot exec"); 
         exit(EXIT_FAILURE); 
-    }
+    }*/
 
     int workers = atoi(argv[2]); 
     pthread_t tid[workers]; 
@@ -211,6 +207,21 @@ int main (int argc, char** argv){
     pathVisit(dir, q); //inserimento del nome dei file dentro la coda
     for (int i = 0; i < workers; i++){
         push(q, "fine");
+    }
+
+
+    
+    int server = socket (AF_INET,SOCK_STREAM,0);
+    struct sockaddr_in serverAddr;
+    serverAddr.sin_family=AF_INET; 
+    serverAddr.sin_port=htons(1111);
+    serverAddr.sin_addr.s_addr=inet_addr("172.27.68.197");
+    int conn = 0; 
+
+    while ((conn = connect(server,(struct sockaddr*)&serverAddr, sizeof(serverAddr))) == -1 && errno == ENOENT){sleep(1);};
+    if (conn == -1){
+        printf ("errore di connessione\n"); 
+        exit(EXIT_FAILURE); 
     }
 
     arg_t arg = {q,mtx,server};

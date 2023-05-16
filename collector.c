@@ -25,6 +25,7 @@ typedef struct{
     fd_set* clients; 
     pthread_mutex_t* mutex; 
     int* fdMax;
+    int* connections;
 }arg_t;
 
 void aggiornaMax(fd_set set , int* max){
@@ -38,6 +39,7 @@ void* worker(void* args){
     int* fdMax = ((arg_t*)args)->fdMax;
     fd_set* clients = ((arg_t*)args)->clients; 
     pthread_mutex_t* mtx = ((arg_t*)args)->mutex;
+     
 
     char buf[N]; 
     while (1){
@@ -47,11 +49,6 @@ void* worker(void* args){
         } 
         
        int n = read (*fd, buf, N); //leggo il messaggio dal client
-       if (strcmp(buf, "end") == 0){
-        printf ("%s\n", buf); 
-        free(fd);
-        break;
-       } 
 
        if (n > 0){ 
        printf ("%s", buf); 
@@ -60,11 +57,14 @@ void* worker(void* args){
         if (n==0){ //il cliente è uscito
             //il server chiude la connessione
             pthread_mutex_lock(mtx); 
-            close(*fd); 
-            FD_CLR(*fd,clients);
-            aggiornaMax(*clients, fdMax);
+            close(*fd); //chiudo il socket 
+            FD_CLR(*fd,clients);//aggiorno la maschera
+    
+            if (*fd == *fdMax) aggiornaMax(*clients, fdMax); 
             pthread_mutex_unlock(mtx);
             free(fd);
+            // printf ("%d\n", *(((arg_t*)args)->connections)); 
+            *((arg_t*)args)->connections += 1; 
             break; 
             } 
         free(fd);   
@@ -74,7 +74,7 @@ void* worker(void* args){
 
 int main (int argc, char** argv){
     //devo settare i socket e fare le connessioni
-    if (argc != 2){
+    if (argc != 2/*3*/){
         fprintf (stdout,"Numero di parametri sbagliato, riprova\n"); 
         exit (EXIT_FAILURE);
     }
@@ -90,7 +90,7 @@ int main (int argc, char** argv){
     serverAddr.sin_addr.s_addr=inet_addr("172.27.68.197");
 
     int r1,r2;
-    SYSCALL_EXIT(bind,r1,bind (server,(struct sockaddr*)&serverAddr, sizeof(serverAddr)), "sulla bind"); 
+    SYSCALL_EXIT(bind,r1,bind (server,(struct sockaddr*)&serverAddr, sizeof(serverAddr)), "sulla bind\n"); 
     SYSCALL_EXIT(listen, r2,listen (server, MAX_NUM_FILE + 1), "sulla listen"); //mi metto in ascolto del numero massimo di file che possono esserci dentro la dir corrente
 
     fd_set allFDs, readFDs; //allFDs: tutti i client+server
@@ -102,52 +102,62 @@ int main (int argc, char** argv){
     pthread_mutex_t* m = (pthread_mutex_t*) malloc (sizeof (pthread_mutex_t));
     pthread_mutex_init(m, NULL);   
     Queue_t* q = initQueue(); 
+    int* connessioniEffettuate = (int*) malloc (sizeof (int)); 
+    *connessioniEffettuate = 0; 
+    arg_t* threadArgs = (arg_t*) malloc (sizeof (arg_t)); 
+    threadArgs->q=q;
+    threadArgs->mutex=m;
+    threadArgs->fdMax=&fdMax;
+    threadArgs->clients=&allFDs;
+    threadArgs->connections = connessioniEffettuate; 
+    
+    
+    int numThread = atoi(argv[1/*2*/]);
 
-    arg_t threadArgs; 
-    threadArgs.q=q;
-    threadArgs.mutex=m;
-    threadArgs.fdMax=&fdMax;
-    threadArgs.clients=&allFDs;
-
-    int numThread = atoi(argv[1]);
     for (int i = 0; i < numThread; i++){
-        pthread_t tid; 
-        pthread_create(&tid, NULL, worker, &threadArgs);
+        int err; 
+        pthread_t tid;     
+        SYSCALL_EXIT(pthread_create,err,pthread_create(&tid, NULL, worker, threadArgs), " sulla creazione del %d thread server\n", i);
         pthread_detach(tid); //so che il server deve rimanere in attesa, così forzo il fatto che non possa fare la join sui thread
     }
     
     //questo è il thread che rappresenta il server: rimane in attesa fino a quando l'operazione di scrittura dell'output non è completata 
-    while (1){
+    while (*(threadArgs->connections) != numThread){
     pthread_mutex_lock (m); 
-    readFDs = allFDs; //copia del set
-    int currMax = fdMax; 
- 
-    //controllo se ci sono client: tramite un contatore
-
+    readFDs = *(threadArgs->clients); //copia del set
+    int currMax = *threadArgs->fdMax;
+    /*
+    */
     pthread_mutex_unlock(m);
+
+    //imposto un timeout per rendere on bloccante la SC select
+    struct timeval timeout;
+    timeout.tv_sec = 1;
+    timeout.tv_usec = 0;
     int r; 
-    SYSCALL_EXIT(select, r, select(currMax+1,&readFDs,NULL,NULL,NULL), "Facendo la Select"); 
-    
+    SYSCALL_EXIT(select, r, select(currMax+1,&readFDs,NULL,NULL,&timeout), "Facendo la Select\n"); 
     for (int i = 0; i < currMax + 1;i++){
         if (FD_ISSET(i, &readFDs)){
+          
             if (i == server){ //server pronto
                 int clientFD = accept (server, NULL, NULL); //ritorna il fd usato per la connessione con il client
                 pthread_mutex_lock(m); 
-                FD_SET( clientFD,&allFDs); //metto il client in allFDs
-                if(clientFD > fdMax) fdMax = clientFD; //aggiorno fdMax in questo caso
+                FD_SET( clientFD,threadArgs->clients); //metto il client in allFDs
+                if(clientFD > fdMax) *threadArgs->fdMax = clientFD; //aggiorno fdMax in questo caso
                 pthread_mutex_unlock(m);  
             }else {
                 //read 
                 int* client = (int*) malloc(sizeof (int)); 
                 *client = i; 
-                push(q,client);
+                push(threadArgs->q,client);
                 }
             }
-        }  
+        } 
     }
-
+    
+    int cl; 
+    SYSCALL_EXIT(close, cl, close(server), " sulla chiusura del server");
     pthread_mutex_destroy(m); 
     deleteQueue(q); 
-    close (server); 
     return 0;
 }
