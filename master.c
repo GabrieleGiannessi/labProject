@@ -84,8 +84,7 @@ char* elaboraDati (char* pathFile){
 
     char buffer [MAX_LENGTH_PATH]; 
     float* arr = (float*) malloc(sizeof(float));; 
-    int i = 0;
-    float number; 
+    int i = 0; 
     int count = 0;
 
         while (fgets (buffer, MAX_LENGTH_PATH, f) != NULL){
@@ -149,7 +148,9 @@ void pathVisit(char* dir, Queue_t* q){
             } 
         }
     }
+
     closedir(d);  
+    free(d); 
     return; 
 }
 
@@ -171,7 +172,9 @@ void* thread_worker(void* arg){
             break;
         }   
 
-        char* line = elaboraDati (file);
+        char* line = elaboraDati(file);
+        free (file); 
+        
         write (sfd, line, (strlen(line)+1)*sizeof(char)); //messaggio al collector 
         read (sfd, line, (strlen(line)+1)*sizeof(char)); //leggo il messaggio dal server
         pthread_mutex_unlock(a->mtx); 
@@ -188,13 +191,13 @@ int main (int argc, char** argv){
         exit(EXIT_FAILURE); 
     }
     
-   /* pid_t pid; 
+   pid_t pid; 
     SYSCALL_EXIT (fork, pid, fork(), "sulla fork"); 
     if (pid == 0){
         execv("c.out", argv); 
         perror ("cannot exec"); 
         exit(EXIT_FAILURE); 
-    }*/
+    }
 
     int workers = atoi(argv[2]); 
     pthread_t tid[workers]; 
@@ -208,8 +211,6 @@ int main (int argc, char** argv){
     for (int i = 0; i < workers; i++){
         push(q, "fine");
     }
-
-
     
     int server = socket (AF_INET,SOCK_STREAM,0);
     struct sockaddr_in serverAddr;

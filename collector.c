@@ -74,7 +74,7 @@ void* worker(void* args){
 
 int main (int argc, char** argv){
     //devo settare i socket e fare le connessioni
-    if (argc != 2/*3*/){
+    if (argc != 3){
         fprintf (stdout,"Numero di parametri sbagliato, riprova\n"); 
         exit (EXIT_FAILURE);
     }
@@ -83,15 +83,14 @@ int main (int argc, char** argv){
     printf ("-----------------------------------------------------------\n");
 
     int server = socket (AF_INET, SOCK_STREAM,0); //restituisce un fd
-    char buff[N];
     struct sockaddr_in serverAddr;
     serverAddr.sin_family=AF_INET; 
     serverAddr.sin_port=htons(1111);
     serverAddr.sin_addr.s_addr=inet_addr("172.27.68.197");
 
     int r1,r2;
-    SYSCALL_EXIT(bind,r1,bind (server,(struct sockaddr*)&serverAddr, sizeof(serverAddr)), "sulla bind\n"); 
-    SYSCALL_EXIT(listen, r2,listen (server, MAX_NUM_FILE + 1), "sulla listen"); //mi metto in ascolto del numero massimo di file che possono esserci dentro la dir corrente
+    SYSCALL_EXIT(bind,r1,bind (server,(struct sockaddr*)&serverAddr, sizeof(serverAddr)), " sulla bind\n"); 
+    SYSCALL_EXIT(listen, r2,listen (server, MAX_NUM_FILE + 1), " sulla listen\n"); //mi metto in ascolto del numero massimo di file che possono esserci dentro la dir corrente
 
     fd_set allFDs, readFDs; //allFDs: tutti i client+server
 
@@ -112,7 +111,7 @@ int main (int argc, char** argv){
     threadArgs->connections = connessioniEffettuate; 
     
     
-    int numThread = atoi(argv[1/*2*/]);
+    int numThread = atoi(argv[2]);
 
     for (int i = 0; i < numThread; i++){
         int err; 
@@ -126,16 +125,10 @@ int main (int argc, char** argv){
     pthread_mutex_lock (m); 
     readFDs = *(threadArgs->clients); //copia del set
     int currMax = *threadArgs->fdMax;
-    /*
-    */
+    
     pthread_mutex_unlock(m);
-
-    //imposto un timeout per rendere on bloccante la SC select
-    struct timeval timeout;
-    timeout.tv_sec = 1;
-    timeout.tv_usec = 0;
     int r; 
-    SYSCALL_EXIT(select, r, select(currMax+1,&readFDs,NULL,NULL,&timeout), "Facendo la Select\n"); 
+    SYSCALL_EXIT(select, r, select(currMax+1,&readFDs,NULL,NULL,NULL), "Facendo la Select\n"); 
     for (int i = 0; i < currMax + 1;i++){
         if (FD_ISSET(i, &readFDs)){
           
