@@ -32,7 +32,7 @@
 typedef struct{
     Queue_t* q; 
     pthread_mutex_t* mtx;
-    int sfd; //socket file descriptor del client
+   // int sfd; //socket file descriptor del client
 }arg_t; 
 
 
@@ -128,8 +128,6 @@ void pathVisit(char* dir, Queue_t* q){
         strcat (newPath, "/"); 
         strcat (newPath, dr->d_name);
 
- 
-
         if (stat (newPath, &info) == -1){
             perror ("Errore nella stat"); 
             exit(EXIT_FAILURE);
@@ -149,8 +147,7 @@ void pathVisit(char* dir, Queue_t* q){
         }
     }
 
-    closedir(d);  
-    free(d); 
+    closedir(d);   
     return; 
 }
 
@@ -159,10 +156,22 @@ void* thread_worker(void* arg){
     /**thread che rappresenta un client: richiede connessione al server tramite i dati della bind, invia i messaggi da far stampare al server e poi
     * e poi chiude la connessione chiudendo il socket 
     */
-   
+    int server = socket (AF_INET,SOCK_STREAM,0);
+    struct sockaddr_in serverAddr;
+    serverAddr.sin_family=AF_INET; 
+    serverAddr.sin_port=htons(1111);
+    serverAddr.sin_addr.s_addr=inet_addr("172.27.68.197");
+    int conn = 0; 
+
+    while ((conn = connect(server,(struct sockaddr*)&serverAddr, sizeof(serverAddr))) == -1 && errno == ENOENT){sleep(1);};
+    if (conn == -1){
+        perror ("errore di connessione"); 
+        exit(EXIT_FAILURE); 
+    }
+
     arg_t* a = (arg_t*) arg;
     Queue_t* q = a->q;
-    int sfd = (int) a->sfd; 
+   // int sfd = (int) a->sfd; 
     while (1){
         pthread_mutex_lock(a->mtx);
         char* file = (char*) pop (q); 
@@ -173,14 +182,14 @@ void* thread_worker(void* arg){
         }   
 
         char* line = elaboraDati(file);
-        free (file); 
         
-        write (sfd, line, (strlen(line)+1)*sizeof(char)); //messaggio al collector 
-        read (sfd, line, (strlen(line)+1)*sizeof(char)); //leggo il messaggio dal server
+        write (server/*sfd*/, line, (strlen(line)+1)*sizeof(char)); //messaggio al collector 
+        read (server/*sfd*/, line, (strlen(line)+1)*sizeof(char)); //leggo il messaggio dal server
         pthread_mutex_unlock(a->mtx); 
         free(line); 
     }
 
+    close (server); 
     return NULL;  
 }
 
@@ -212,20 +221,7 @@ int main (int argc, char** argv){
         push(q, "fine");
     }
     
-    int server = socket (AF_INET,SOCK_STREAM,0);
-    struct sockaddr_in serverAddr;
-    serverAddr.sin_family=AF_INET; 
-    serverAddr.sin_port=htons(1111);
-    serverAddr.sin_addr.s_addr=inet_addr("172.27.68.197");
-    int conn = 0; 
-
-    while ((conn = connect(server,(struct sockaddr*)&serverAddr, sizeof(serverAddr))) == -1 && errno == ENOENT){sleep(1);};
-    if (conn == -1){
-        printf ("errore di connessione\n"); 
-        exit(EXIT_FAILURE); 
-    }
-
-    arg_t arg = {q,mtx,server};
+    arg_t arg = {q,mtx/*,server*/};
 
     //workers
     for (int i = 0; i < workers; i++){
@@ -242,6 +238,5 @@ int main (int argc, char** argv){
 
     deleteQueue(q);
     pthread_mutex_destroy(mtx); 
-    close (server); 
     return 0; 
 }

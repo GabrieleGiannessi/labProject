@@ -3,15 +3,13 @@
 def: collector.c master.c unboundedqueue.c 
 	gcc -Wall -pedantic collector.c unboundedqueue.c -o c.out
 	gcc -Wall -pedantic master.c unboundedqueue.c -o m.out -lm
+	gcc -Wall -pedantic main.c -o main
 
 test1:
-	echo 'Primo test'
-	./m.out . 1 
+	./main . 1 
 
 test2: 
-	echo Secondo test
-	./m.out . 5
+	./main . 3
 
 test3: 
-	echo Terzo test
-	valgrind --leak-check=full --track-fds=yes --trace-children=yes ./m.out . 5
+	valgrind --leak-check=full --track-fds=yes --trace-children=yes ./main . 5
