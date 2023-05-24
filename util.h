@@ -15,6 +15,11 @@
 #include <errno.h>
 
 
+#if !defined(PORT)
+#define PORT 1111
+#endif
+
+
 #if !defined(BUFSIZE)
 #define BUFSIZE 256
 #endif
