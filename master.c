@@ -115,7 +115,7 @@ void elaboraDati(char* pathFile, char* output) {
 
     float m = media(arr, count);
     float dev = deviazione(arr, m, count);
-    sprintf(output, "%d   %.2f   %.2f   %s \n", count, m, dev, pathFile);
+    snprintf(output,MAX_LENGTH_PATH, "%d   %.2f   %.2f   %s \n", count, m, dev, pathFile);
 
     fclose(f);
     free(arr);
@@ -197,6 +197,7 @@ void* thread_worker(void* arg){
     arg_t* a = (arg_t*) arg;
     Queue_t* q = a->q;
     char* file = (char*) malloc (MAX_LENGTH_PATH * sizeof(char)); 
+    char* output = (char*) malloc (N * sizeof(char));
 
     while (1){
         pthread_mutex_lock(a->mtx);
@@ -206,17 +207,16 @@ void* thread_worker(void* arg){
             pthread_mutex_unlock(a->mtx); 
             break;
         }   
-
-        char* output = (char*) malloc (N * sizeof(char));  
-        output[0] = '\0'; //inizializzo l'output
+  
+        //output[0] = '\0'; //inizializzo l'output
         //char* output = NULL; 
         elaboraDati(file, output);
         write (client, output, (strlen(output)+1)*sizeof(char)); //messaggio al collector 
         read (client, output, (strlen(output)+1)*sizeof(char)); //leggo il messaggio dal server
         pthread_mutex_unlock(a->mtx); 
-        free(output);
     }
 
+    free(output);
     free(file);
      
     int cl; 

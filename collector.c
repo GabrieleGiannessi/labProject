@@ -34,7 +34,7 @@ void aggiornaMax(fd_set* set , int* max){
 
 void deleteArgs(arg_t* arg){ 
     deleteQueue(arg->q); 
-    pthread_mutex_destroy(arg->mutex);  
+    free(arg->mutex);  
     free(arg->connections); 
     free(arg);
 }
@@ -177,6 +177,7 @@ int main (int argc, char** argv){
         close (i);}
     }
 
+    free(allFDs);
     deleteArgs(threadArgs);
     return 0;
 }
