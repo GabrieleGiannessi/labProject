@@ -51,8 +51,7 @@ void* worker(void* args){
     char buf[N]; 
     while (1){ 
         int* fd = (int*) pop(q); //puntatore al socket usato dal server per comunicare con un certo client
-        if (fd == NULL){
-            free(fd); 
+        if (fd == NULL){  
             break;
         } 
         
@@ -68,7 +67,7 @@ void* worker(void* args){
             pthread_mutex_lock(mtx); 
             //close(*fd); //chiudo il socket
             FD_CLR(*fd,clients);//aggiorno la maschera 
-            if (*fd == *fdMax) aggiornaMax(clients, fdMax);
+            if (*fd == *fdMax) aggiornaMax(clients, fdMax); //se il fd era il massimo devo risettarlo
             *conn += 1;  
             pthread_mutex_unlock(mtx);
             free(fd);   
@@ -166,8 +165,12 @@ int main (int argc, char** argv){
                 }
             }
         } 
+    }
 
-
+    printf ("%d\n", *threadArgs->connections);
+    int* value = (int*) malloc (sizeof (int));
+    while ((value = (int*)pop(threadArgs->q)) != NULL){
+        printf ("%d\n", *value); 
     }
 
     int cl; 
