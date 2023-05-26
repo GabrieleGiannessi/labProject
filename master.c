@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <fcntl.h>
 #include <dirent.h>
 #include <errno.h>
@@ -82,19 +83,18 @@ char* formatta (char* s){
 
 void elaboraDati(char* pathFile, char* output) {
     FILE* f;
-    //printf ("%s\n", pathFile);
     if ((f = fopen(pathFile, "r")) == NULL) {
         perror("open file error");
         exit(EXIT_FAILURE);
     }
 
     char buffer[MAX_LENGTH_PATH];
-    float* arr = NULL;
+    float* arr = (float*) malloc (sizeof(float));
     int count = 0;
-    char* r; 
+    //char* r = (char*) malloc (MAX_LENGTH_PATH * sizeof (char)); 
     while (fgets(buffer, MAX_LENGTH_PATH, f) != NULL) {  
-        r = formatta(buffer); 
-       //printf ("%s,%s", buffer, r);
+       char* r = formatta(buffer); 
+        
         if (r != NULL) {
             count++;
             float* new_arr = (float*)realloc(arr, count * sizeof(float));
@@ -107,17 +107,18 @@ void elaboraDati(char* pathFile, char* output) {
             float number = elaboraFloat(r);
             *(arr + count - 1) = number;  
         }
+
        free(r); // Dealloco la memoria allocata per r
-       r = (char*) malloc ((MAX_LENGTH_PATH+1) * sizeof (char)); //devo allocare tanti blocchi per evitare di prendere in considerazione memoria invalida e creare numeri scorretti
+      // r = (char*) malloc ((MAX_LENGTH_PATH) * sizeof (char)); //devo allocare tanti blocchi per evitare di prendere in considerazione memoria invalida e creare numeri scorretti
     }
-    free(r); 
+    //free(r); 
 
     float m = media(arr, count);
     float dev = deviazione(arr, m, count);
     sprintf(output, "%d   %.2f   %.2f   %s \n", count, m, dev, pathFile);
 
-    free(arr);
     fclose(f);
+    free(arr);
     return;
 }
 
@@ -130,6 +131,7 @@ void pathVisit(char* dir, Queue_t* q){
     }//siamo sicuri che d è una directory
 
     struct dirent* dr;
+    char *newPath = (char*) malloc (MAX_LENGTH_PATH * sizeof(char));
 
     while ((errno=0,dr = readdir(d)) != NULL){
         struct stat info;
@@ -140,8 +142,6 @@ void pathVisit(char* dir, Queue_t* q){
             exit(EXIT_FAILURE); 
         } 
 
-        char *newPath = (char*) malloc (MAX_LENGTH_PATH * sizeof(char));
-       
         strcpy (newPath, dir); 
         strcat (newPath, "/"); 
         strcat (newPath, dr->d_name);
@@ -162,10 +162,10 @@ void pathVisit(char* dir, Queue_t* q){
             if (strstr(newPath, ".dat") != NULL){
                 push(q,strdup(newPath));
             } 
-        }
-      free(newPath);  
+        }   
     }
 
+    free(newPath); 
     closedir(d);   
     return; 
 }
@@ -189,31 +189,32 @@ void* thread_worker(void* arg){
 
     while ((conn = connect(client,(struct sockaddr*)&serverAddr, sizeof(serverAddr))) == -1 && errno == ENOENT){sleep(10);};
     if (conn == -1){
+        close(client);
         perror ("errore di connessione"); 
         exit(EXIT_FAILURE); 
     }
 
     arg_t* a = (arg_t*) arg;
     Queue_t* q = a->q;
-    char* file; 
+    char* file = (char*) malloc (MAX_LENGTH_PATH * sizeof(char)); 
 
     while (1){
         pthread_mutex_lock(a->mtx);
-        file = (char*) pop(q);  
+        strcpy(file,(char*) pop(q));  
 
         if (strcmp (file, "fine") == 0){ 
             pthread_mutex_unlock(a->mtx); 
             break;
         }   
 
-        char* output = (char*) malloc (MAX_LENGTH_PATH * sizeof(char)); 
+        char* output = (char*) malloc (N * sizeof(char));  
+        output[0] = '\0'; //inizializzo l'output
+        //char* output = NULL; 
         elaboraDati(file, output);
         write (client, output, (strlen(output)+1)*sizeof(char)); //messaggio al collector 
         read (client, output, (strlen(output)+1)*sizeof(char)); //leggo il messaggio dal server
         pthread_mutex_unlock(a->mtx); 
         free(output);
-        free (file); 
-        file = (char*) malloc (sizeof (char)); 
     }
 
     free(file);

@@ -32,6 +32,12 @@ void aggiornaMax(fd_set* set , int* max){
     while (!FD_ISSET(*max, set)) *max = *max - 1;
 }
 
+void deleteArgs(arg_t* arg){ 
+    deleteQueue(arg->q); 
+    pthread_mutex_destroy(arg->mutex);  
+    free(arg->connections); 
+    free(arg);
+}
 
 void* worker(void* args){
     //devo dare la coda condivisa dove prendere i vari socket 
@@ -89,11 +95,11 @@ int main (int argc, char** argv){
         exit (EXIT_FAILURE); 
     }
 
-    if (setsockopt(server, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0){
-        perror("setsockopt(SO_REUSEADDR) failed");
-        exit(EXIT_FAILURE);
-    }
-    
+    //if (setsockopt(server, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0){
+    //    perror("setsockopt(SO_REUSEADDR) failed");
+    //    exit(EXIT_FAILURE);
+    //}
+    //
     
     struct sockaddr_in serverAddr;
     serverAddr.sin_family=AF_INET; 
@@ -164,14 +170,13 @@ int main (int argc, char** argv){
 
     }
 
-    //for (int i = 0; i < *threadArgs->fdMax; i++){
-      //  if (FD_ISSET(i, threadArgs->clients)) {FD_CLR(i, threadArgs->clients);}
-   // }
-    
     int cl; 
     SYSCALL_EXIT(close, cl, close(server), " sulla chiusura del server");
-    free (threadArgs); 
-    pthread_mutex_destroy(m); 
-    deleteQueue(q); 
+    for (int i = 0; i < *threadArgs->fdMax; i++){
+        if (FD_ISSET(i, threadArgs->clients)) {FD_CLR(i, threadArgs->clients);
+        close (i);}
+    }
+
+    deleteArgs(threadArgs);
     return 0;
 }

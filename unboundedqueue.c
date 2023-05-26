@@ -20,8 +20,8 @@
 // tipo 'robust mutex' (pthread_mutex_lock(3)) per cui possono
 // di fatto ritornare solo EINVAL se la mutex non e' stata inizializzata.
 
-static inline Node_t  *allocNode()                  { return malloc(sizeof(Node_t));  }
-static inline Queue_t *allocQueue()                 { return malloc(sizeof(Queue_t)); }
+static inline Node_t  *allocNode()                  { return (Node_t*)malloc(sizeof(Node_t));  }
+static inline Queue_t *allocQueue()                 { return (Queue_t*)malloc(sizeof(Queue_t)); }
 static inline void freeNode(Node_t *node)           { free((void*)node); }
 static inline void LockQueue(Queue_t *q)            { LOCK(&q->qlock);   }
 static inline void UnlockQueue(Queue_t *q)          { UNLOCK(&q->qlock); }
