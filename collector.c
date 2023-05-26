@@ -48,15 +48,16 @@ void* worker(void* args){
     int* conn = ((arg_t*)args)->connections;
      
 
-    char buf[N]; 
-    while (1){ 
-        int* fd = (int*) pop(q); //puntatore al socket usato dal server per comunicare con un certo client
+    char buf[N];
+    int* fd = (int*) pop(q);  //puntatore al socket usato dal server per comunicare con un certo client 
+    
         if (fd == NULL){  
-            break;
-        } 
-        
+            return NULL; 
+        }
+    
+    while (1){ 
        int n = read (*fd, buf, N); //leggo il messaggio dal client
-
+       
        if (n > 0){ 
        printf ("%s", buf); 
        write (*fd, buf, strlen(buf) + 1);
@@ -65,16 +66,16 @@ void* worker(void* args){
         if (n==0){ //il cliente è uscito
             //il server chiude la connessione
             pthread_mutex_lock(mtx); 
-            //close(*fd); //chiudo il socket
             FD_CLR(*fd,clients);//aggiorno la maschera 
             if (*fd == *fdMax) aggiornaMax(clients, fdMax); //se il fd era il massimo devo risettarlo
-            *conn += 1;  
+            close(*fd); //chiudo il socket
+            (*conn)++; //quando il thread termina abbiamo completato un servizio   
             pthread_mutex_unlock(mtx);
-            free(fd);   
+            free(fd);
             break; 
-            } 
-        free(fd);   
+            }    
     }
+    
     return NULL; 
 }
 
@@ -138,11 +139,26 @@ int main (int argc, char** argv){
     }
     
     //questo è il thread che rappresenta il server: rimane in attesa fino a quando l'operazione di scrittura dell'output non è completata 
+    int clientConnessi[numThread]; 
+    //inizializzazione
+    for (int i = 0; i < numThread; i++){
+        clientConnessi[i] = 0; 
+    }
+    int k = 0;
+     
     while (*(threadArgs->connections) != numThread){
     pthread_mutex_lock (m); 
     readFDs = *(threadArgs->clients); //copia del set
     int currMax = *threadArgs->fdMax;  
     pthread_mutex_unlock(m);
+
+
+    for (int i = 0; i < currMax+1; i++){
+        if (FD_ISSET(i, &readFDs)) printf ("%d ",i); 
+    }
+    printf ("\n");
+    printf ("%d\n", *threadArgs->connections);
+    //printf ("%ld \n", length(threadArgs->q));
 
     int r; 
     SYSCALL_EXIT(select, r, select(currMax+1,&readFDs,NULL,NULL,NULL), "Facendo la Select\n"); //aspetta che un qualche fd in readFDs sia pronto per la lettura
@@ -158,7 +174,16 @@ int main (int argc, char** argv){
                 if(clientFD > fdMax) *(threadArgs->fdMax) = clientFD; //aggiorno fdMax in questo caso
                 pthread_mutex_unlock(m);  
             }else {
-                //read 
+                //read : bisogna tenere traccia dei client che sono già in fase di connessione con i thread
+                int flag = 0; 
+                for (int j = 0; j < numThread;j++){
+                    if (clientConnessi[j] == i) flag = 1;
+                }
+
+                if (flag) continue; //passo al prossimo poichè è già dentro la coda
+ 
+                clientConnessi[k] = i; 
+                k++; 
                 int* client = (int*) malloc(sizeof (int)); 
                 *client = i; 
                 push(threadArgs->q,client);
@@ -168,17 +193,17 @@ int main (int argc, char** argv){
     }
 
     printf ("%d\n", *threadArgs->connections);
-    int* value = (int*) malloc (sizeof (int));
-    while ((value = (int*)pop(threadArgs->q)) != NULL){
-        printf ("%d\n", *value); 
-    }
+    //int* value = (int*) malloc (sizeof (int));
+    //while ((value = (int*)pop(threadArgs->q)) != NULL){
+    //    printf ("%d\n", *value); 
+    //}
 
     int cl; 
     SYSCALL_EXIT(close, cl, close(server), " sulla chiusura del server");
-    for (int i = 0; i < *threadArgs->fdMax; i++){
-        if (FD_ISSET(i, threadArgs->clients)) {FD_CLR(i, threadArgs->clients);
-        close (i);}
-    }
+    //for (int i = 0; i < *threadArgs->fdMax; i++){
+    //    if (FD_ISSET(i, threadArgs->clients)) {FD_CLR(i, threadArgs->clients);
+    //    close (i);}
+    //}
 
     free(allFDs);
     deleteArgs(threadArgs);

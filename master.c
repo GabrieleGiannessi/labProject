@@ -187,7 +187,7 @@ void* thread_worker(void* arg){
     serverAddr.sin_addr.s_addr=inet_addr("172.27.68.197");
     int conn = 0; 
 
-    while ((conn = connect(client,(struct sockaddr*)&serverAddr, sizeof(serverAddr))) == -1 && errno == ENOENT){sleep(10);};
+    while ((conn = connect(client,(struct sockaddr*)&serverAddr, sizeof(serverAddr))) == -1 && errno == ENOENT){sleep(1);};
     if (conn == -1){
         close(client);
         perror ("errore di connessione"); 
@@ -231,13 +231,13 @@ int main (int argc, char** argv){
         exit(EXIT_FAILURE); 
     }
     
-   pid_t pid; 
-    SYSCALL_EXIT (fork, pid, fork(), "sulla fork"); 
-    if (pid == 0){
-        execv("./c.out", argv); 
-        perror ("cannot exec"); 
-        exit(EXIT_FAILURE); 
-    }
+   //pid_t pid; 
+   // SYSCALL_EXIT (fork, pid, fork(), "sulla fork"); 
+   // if (pid == 0){
+   //     execv("./c.out", argv); 
+   //     perror ("cannot exec"); 
+   //     exit(EXIT_FAILURE); 
+   // }
 
     int workers = atoi(argv[2]); 
     pthread_t tid[workers]; 
