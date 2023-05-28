@@ -55,15 +55,11 @@ float deviazione(float* a, float media, int length){
     return sqrt(dev/length); 
 }
 
-float elaboraFloat(char f[]){ //elabora i numeri dentro al file e restituisce i numeri per calcolare  
-      return strtof(f, NULL);
-}
-
 char* formatta (char* s){
     char* delimitatori = " \t\n";
     char* temp = strdup(s);
     char* tok;
-    char* res = (char*) malloc (strlen(s)*sizeof(char)); 
+    char* res = (char*) malloc ((strlen(s)+1)*sizeof(char)); 
     memset(res, 0, strlen(s)); 
 
     if((tok = strtok(temp,delimitatori)) != NULL){
@@ -103,7 +99,7 @@ char* elaboraDati(char* pathFile) {
                 exit(EXIT_FAILURE);
             }
             arr = new_arr;
-            float number = elaboraFloat(r);
+            float number = strtof(r,NULL);
             *(arr + count - 1) = number;  
         }
 
