@@ -49,19 +49,18 @@ float media (float* a,int length){
 float deviazione(float* a, float media, int length){
     float dev = 0; 
     for (int i = 0; i < length; i++){
-        dev += (float)pow((media - a[i]),2); 
+        float el = (media - a[i])*(media - a[i]); 
+        dev += el; 
     }
-    return (float)sqrt(dev/length); 
+    return sqrt(dev/length); 
 }
 
 float elaboraFloat(char f[]){ //elabora i numeri dentro al file e restituisce i numeri per calcolare  
-      float n; 
-      sscanf (f,"%f",&n); 
-      return n; 
+      return strtof(f, NULL);
 }
 
 char* formatta (char* s){
-     char* delimitatori = " \t\n";
+    char* delimitatori = " \t\n";
     char* temp = strdup(s);
     char* tok;
     char* res = (char*) malloc (strlen(s)*sizeof(char)); 
@@ -81,7 +80,7 @@ char* formatta (char* s){
     return res; 
 }
 
-void elaboraDati(char* pathFile, char* output) {
+char* elaboraDati(char* pathFile) {
     FILE* f;
     if ((f = fopen(pathFile, "r")) == NULL) {
         perror("open file error");
@@ -89,7 +88,7 @@ void elaboraDati(char* pathFile, char* output) {
     }
 
     char buffer[MAX_LENGTH_PATH];
-    float* arr = (float*) malloc (sizeof(float));
+    float* arr = (float*) calloc(MAX_LENGTH_PATH,sizeof(float));
     int count = 0;
     //char* r = (char*) malloc (MAX_LENGTH_PATH * sizeof (char)); 
     while (fgets(buffer, MAX_LENGTH_PATH, f) != NULL) {  
@@ -115,11 +114,12 @@ void elaboraDati(char* pathFile, char* output) {
 
     float m = media(arr, count);
     float dev = deviazione(arr, m, count);
-    snprintf(output,MAX_LENGTH_PATH, "%d   %.2f   %.2f   %s \n", count, m, dev, pathFile);
+    char* output = (char*) calloc (MAX_FILENAME_LENGTH,sizeof(char)); 
+    sprintf(output,"%d   %.2f   %.2f   %s \n", count, m, dev, pathFile);
 
-    fclose(f);
     free(arr);
-    return;
+    fclose(f);
+    return output;
 }
 
 
@@ -196,28 +196,26 @@ void* thread_worker(void* arg){
 
     arg_t* a = (arg_t*) arg;
     Queue_t* q = a->q;
-    char* file = (char*) malloc (MAX_LENGTH_PATH * sizeof(char)); 
-    char* output = (char*) malloc (N * sizeof(char));
+    char* file = (char*) calloc (MAX_LENGTH_PATH,sizeof(char));
 
     while (1){
         pthread_mutex_lock(a->mtx);
         strcpy(file,(char*) pop(q));  
 
+        //printf ("%s\n", file);
         if (strcmp (file, "fine") == 0){ 
             pthread_mutex_unlock(a->mtx); 
             break;
         }   
-  
-        //output[0] = '\0'; //inizializzo l'output
-        //char* output = NULL; 
-        elaboraDati(file, output);
+
+        char* output = elaboraDati(file);
         write (client, output, (strlen(output)+1)*sizeof(char)); //messaggio al collector 
         read (client, output, (strlen(output)+1)*sizeof(char)); //leggo il messaggio dal server
         pthread_mutex_unlock(a->mtx); 
+        free(output);
     }
-
-    free(output);
     free(file);
+    
      
     int cl; 
     SYSCALL_EXIT(close, cl, close(client), " sulla chiusura del client");
@@ -270,5 +268,6 @@ int main (int argc, char** argv){
 
     deleteQueue(q);
     pthread_mutex_destroy(mtx); 
+    free(mtx);
     return 0; 
 }

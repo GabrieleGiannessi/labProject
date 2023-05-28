@@ -23,6 +23,7 @@
 typedef struct{
     Queue_t* q;
     fd_set* clients; 
+    fd_set* closed;
     pthread_mutex_t* mutex; 
     int* fdMax;
     int* connections;
@@ -34,7 +35,7 @@ void aggiornaMax(fd_set* set , int* max){
 
 void deleteArgs(arg_t* arg){ 
     deleteQueue(arg->q); 
-    free(arg->mutex);  
+    free(arg->mutex); 
     free(arg->connections); 
     free(arg);
 }
@@ -44,6 +45,7 @@ void* worker(void* args){
     Queue_t* q = ((arg_t*)args)->q;
     int* fdMax = ((arg_t*)args)->fdMax;
     fd_set* clients = ((arg_t*)args)->clients; 
+    fd_set* closed = ((arg_t*)args)->closed;
     pthread_mutex_t* mtx = ((arg_t*)args)->mutex;
     int* conn = ((arg_t*)args)->connections;
      
@@ -67,15 +69,16 @@ void* worker(void* args){
             //il server chiude la connessione
             pthread_mutex_lock(mtx); 
             FD_CLR(*fd,clients);//aggiorno la maschera 
+            FD_SET(*fd,closed);//il fd è stato chiuso
             if (*fd == *fdMax) aggiornaMax(clients, fdMax); //se il fd era il massimo devo risettarlo
-            close(*fd); //chiudo il socket
-            (*conn)++; //quando il thread termina abbiamo completato un servizio   
+            close(*fd); //chiudo il socket   
             pthread_mutex_unlock(mtx);
             free(fd);
             break; 
             }    
     }
-    
+
+    (*conn)++; //quando il thread termina abbiamo completato un servizio
     return NULL; 
 }
 
@@ -111,9 +114,12 @@ int main (int argc, char** argv){
     SYSCALL_EXIT(bind,r1,bind (server,(struct sockaddr*)&serverAddr, sizeof(serverAddr)), " sulla bind\n"); 
     SYSCALL_EXIT(listen, r2,listen (server, numThread + 1), " sulla listen\n"); //mi metto in ascolto del numero massimo di file che possono esserci dentro la dir corrente
 
-    fd_set* allFDs = (fd_set*) malloc (sizeof(fd_set)); 
-    fd_set readFDs; //fdset usata dal thread server principale
+    fd_set readFDs, clFDs; //fdset usata dal thread server principale
 
+    fd_set* closed = (fd_set*) malloc (sizeof(fd_set));
+    FD_ZERO(closed);
+    
+    fd_set* allFDs = (fd_set*) malloc (sizeof(fd_set)); 
     FD_ZERO(allFDs); 
     FD_SET(server,allFDs); 
     int fdMax = server;
@@ -127,6 +133,7 @@ int main (int argc, char** argv){
     threadArgs->mutex=m;
     threadArgs->fdMax=&fdMax;
     threadArgs->clients=allFDs;
+    threadArgs->closed=closed;
     threadArgs->connections = (int*) malloc (sizeof (int));
     *(threadArgs->connections) = 0;  
     
@@ -145,20 +152,29 @@ int main (int argc, char** argv){
         clientConnessi[i] = 0; 
     }
     int k = 0;
-     
-    while (*(threadArgs->connections) != numThread){
+    while (1){
     pthread_mutex_lock (m); 
     readFDs = *(threadArgs->clients); //copia del set
+    clFDs = *(threadArgs->closed);
     int currMax = *threadArgs->fdMax;  
     pthread_mutex_unlock(m);
 
-
     for (int i = 0; i < currMax+1; i++){
-        if (FD_ISSET(i, &readFDs)) printf ("%d ",i); 
+        if (FD_ISSET(i, &clFDs)){
+            pthread_mutex_lock(m);
+            FD_CLR(i, &readFDs);
+            pthread_mutex_unlock(m); 
+        }
     }
-    printf ("\n");
-    printf ("%d\n", *threadArgs->connections);
+
+    //for (int i = 0; i < currMax+1; i++){
+    //    if (FD_ISSET(i, &readFDs)) printf ("%d ",i); 
+    //}
+    //printf ("\n");
+    //printf ("%d\n", *threadArgs->connections);
     //printf ("%ld \n", length(threadArgs->q));
+
+    if (*(threadArgs->connections) == numThread) break; 
 
     int r; 
     SYSCALL_EXIT(select, r, select(currMax+1,&readFDs,NULL,NULL,NULL), "Facendo la Select\n"); //aspetta che un qualche fd in readFDs sia pronto per la lettura
@@ -192,19 +208,10 @@ int main (int argc, char** argv){
         } 
     }
 
-    printf ("%d\n", *threadArgs->connections);
-    //int* value = (int*) malloc (sizeof (int));
-    //while ((value = (int*)pop(threadArgs->q)) != NULL){
-    //    printf ("%d\n", *value); 
-    //}
-
     int cl; 
     SYSCALL_EXIT(close, cl, close(server), " sulla chiusura del server");
-    //for (int i = 0; i < *threadArgs->fdMax; i++){
-    //    if (FD_ISSET(i, threadArgs->clients)) {FD_CLR(i, threadArgs->clients);
-    //    close (i);}
-    //}
 
+    free(closed);
     free(allFDs);
     deleteArgs(threadArgs);
     return 0;
