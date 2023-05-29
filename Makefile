@@ -12,4 +12,4 @@ test2:
 	./main . 3
 
 test3: 
-	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --track-fds=yes --trace-children=yes -s  ./main . 5
+	valgrind --leak-check=full --track-origins=yes --track-fds=yes --trace-children=yes -s  ./m.out . 5

@@ -47,7 +47,7 @@ void* worker(void* args){
     fd_set* clients = ((arg_t*)args)->clients; 
     fd_set* closed = ((arg_t*)args)->closed;
     pthread_mutex_t* mtx = ((arg_t*)args)->mutex;
-    int* conn = ((arg_t*)args)->connections;
+    //int* conn = ((arg_t*)args)->connections;
      
 
     char buf[N];
@@ -78,19 +78,14 @@ void* worker(void* args){
             }    
     }
 
-    (*conn)++; //quando il thread termina abbiamo completato un servizio
+    //(*conn)++; //quando il thread termina abbiamo completato un servizio
     return NULL; 
 }
 
 int main (int argc, char** argv){
-    
-    fprintf (stdout,"n\tavg\tdev\tfile\n");
-    fprintf (stdout,"-----------------------------------------------------------\n");
 
-    if (argc != 3){
-        fprintf (stdout,"Numero di parametri sbagliato, riprova\n"); 
-        exit (EXIT_FAILURE);
-    }
+    printf ("n\tavg\tdev\tfile\n-----------------------------------------------------------\n");
+   // fflush(stdout);
 
     int server = socket (AF_INET, SOCK_STREAM,0); //restituisce un fd
     if (server < 0){
@@ -130,23 +125,24 @@ int main (int argc, char** argv){
     threadArgs->clients=allFDs;
     threadArgs->closed=closed;
     threadArgs->connections = (int*) malloc (sizeof (int));
-    *(threadArgs->connections) = 0;  
+    *(threadArgs->connections) = 0; 
     
     //creiamo un pool di thread
+    pthread_t tid[numThread];
     for (int i = 0; i < numThread; i++){
-        int err; 
-        pthread_t tid;     
-        SYSCALL_EXIT(pthread_create,err,pthread_create(&tid, NULL, worker, threadArgs), " sulla creazione del %d thread server\n", i);
-        pthread_detach(tid); //so che il server deve rimanere in attesa, così forzo il fatto che non possa fare la join sui thread
+        int err;      
+        SYSCALL_EXIT(pthread_create,err,pthread_create(&tid[i], NULL, worker, threadArgs), " sulla creazione del %d thread server\n", i);
+       // pthread_detach(tid[i]); //so che il server deve rimanere in attesa, così forzo il fatto che non possa fare la join sui thread
     }
-    
-    //questo è il thread che rappresenta il server: rimane in attesa fino a quando l'operazione di scrittura dell'output non è completata 
-    int clientConnessi[numThread]; 
+     
+    int clientConnessi[numThread]; //array che uso per tenere traccia dei fd aperti (clients)
     //inizializzazione
     for (int i = 0; i < numThread; i++){
         clientConnessi[i] = 0; 
     }
     int k = 0;
+
+    //questo è il thread che rappresenta il server: rimane in attesa fino a quando l'operazione di scrittura dell'output non è completata
     while (1){
     pthread_mutex_lock (m); 
     readFDs = *(threadArgs->clients); //copia del set
@@ -178,7 +174,7 @@ int main (int argc, char** argv){
         if (FD_ISSET(i, &readFDs)){
           
             if (i == server){ //server pronto
-                int clientFD = accept (server, NULL, NULL); //ritorna il fd usato per la connessione con il client
+                int clientFD = accept(server, NULL, NULL); //ritorna il fd usato per la connessione con il client
                 
                 pthread_mutex_lock(m); 
                 FD_SET( clientFD,threadArgs->clients); //metto il client in allFDs
@@ -193,14 +189,20 @@ int main (int argc, char** argv){
 
                 if (flag) continue; //passo al prossimo poichè è già dentro la coda
  
-                clientConnessi[k] = i; 
+                clientConnessi[k] = i; //lo metto dentro l'array
                 k++; 
                 int* client = (int*) malloc(sizeof (int)); 
                 *client = i; 
                 push(threadArgs->q,client);
+                (*threadArgs->connections)++;
                 }
             }
         } 
+    }
+
+    //attendo che i thread terminino visto che non accetto più altre connessioni 
+    for (int i = 0; i < numThread; i++){
+        pthread_join(tid[i], NULL);
     }
 
     int cl; 
