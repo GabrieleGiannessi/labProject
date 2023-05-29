@@ -213,9 +213,11 @@ void* thread_worker(void* arg){
             break;
         }
 
+       if (file != NULL) free(file);
        file = strdup(el);
 
         //printf ("da stampare: %s\n", file);
+
         if (strcmp (file, "tab") == 0){ 
             char* intestazione  = "n\tavg\tdev\tfile\n-----------------------------------------------------------\n";
             write (client,intestazione, (strlen(intestazione)+1)*sizeof(char)); //messaggio al collector 
@@ -236,8 +238,6 @@ void* thread_worker(void* arg){
         
         free(output);
         free(el);
-        free(file);
-        //file = NULL; 
     }
     
     if (file != NULL) free(file);
