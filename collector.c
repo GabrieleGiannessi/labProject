@@ -158,13 +158,6 @@ int main (int argc, char** argv){
         }
     }
 
-    //for (int i = 0; i < currMax+1; i++){
-    //    if (FD_ISSET(i, &readFDs)) printf ("%d ",i); 
-    //}
-    //printf ("\n");
-    //printf ("%d\n", *threadArgs->connections);
-    //printf ("%ld \n", length(threadArgs->q));
-
     if (*(threadArgs->connections) == numThread) break; 
 
     int r; 
@@ -181,7 +174,7 @@ int main (int argc, char** argv){
                 if(clientFD > fdMax) *(threadArgs->fdMax) = clientFD; //aggiorno fdMax in questo caso
                 pthread_mutex_unlock(m);  
             }else {
-                //read : bisogna tenere traccia dei client che sono già in fase di connessione con i thread
+                //read : client pronto a comunicare 
                 int flag = 0; 
                 for (int j = 0; j < numThread;j++){
                     if (clientConnessi[j] == i) flag = 1;
@@ -189,7 +182,7 @@ int main (int argc, char** argv){
 
                 if (flag) continue; //passo al prossimo poichè è già dentro la coda
  
-                clientConnessi[k] = i; //lo metto dentro l'array
+                clientConnessi[k] = i; 
                 k++; 
                 int* client = (int*) malloc(sizeof (int)); 
                 *client = i; 
