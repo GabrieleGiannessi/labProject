@@ -60,7 +60,7 @@ char* formatta (char* s){
     char* temp = strdup(s);
     char* tok;
     char* res = (char*) malloc ((strlen(s)+1)*sizeof(char)); 
-    memset(res, 0, strlen(s)); 
+    memset(res, 0, strlen(s)+1); 
 
     if((tok = strtok(temp,delimitatori)) != NULL){
         strcat(res,tok); 
@@ -70,9 +70,12 @@ char* formatta (char* s){
     }
 
     if(strlen(res) == 0){
+        free(temp);
         free(res);
         return NULL;
-    }  
+    } 
+
+    free(temp); 
     return res; 
 }
 
@@ -127,20 +130,22 @@ void pathVisit(char* dir, Queue_t* q){
     }//siamo sicuri che d è una directory
 
     struct dirent* dr;
-    char *newPath = (char*) malloc (MAX_LENGTH_PATH * sizeof(char));
-
+    
     while ((errno=0,dr = readdir(d)) != NULL){
         struct stat info;
         int l1 = strlen (dir); 
         int l2 = strlen (dr->d_name); 
-        if (l1 + l2 + 1 > MAX_LENGTH_PATH) {
+        if (l1 + l2 + 2 > MAX_LENGTH_PATH) {
             fprintf (stdout, "Path troppo lungo\n"); 
             exit(EXIT_FAILURE); 
         } 
 
-        strcpy (newPath, dir); 
+        char *newPath = (char*) malloc ((MAX_LENGTH_PATH) * sizeof(char));
+        strcpy (newPath, dir);  
         strcat (newPath, "/"); 
         strcat (newPath, dr->d_name);
+
+        //char* copy = strdup(newPath);
 
         if (stat (newPath, &info) == -1){
             perror ("Errore nella stat"); 
@@ -157,11 +162,15 @@ void pathVisit(char* dir, Queue_t* q){
         if (S_ISREG(info.st_mode)){
             if (strstr(newPath, ".dat") != NULL){
                 push(q,strdup(newPath));
+                //free(newPath);
             } 
         }   
+    
+       //free(copy);
+       free(newPath); 
     }
 
-    free(newPath); 
+    //free(newPath); 
     closedir(d);   
     return; 
 }
@@ -192,11 +201,17 @@ void* thread_worker(void* arg){
 
     arg_t* a = (arg_t*) arg;
     Queue_t* q = a->q;
-    char* file = (char*) calloc (MAX_LENGTH_PATH,sizeof(char));
-
+    
+    char* file = NULL;
     while (1){
         pthread_mutex_lock(a->mtx);
-        strcpy(file,(char*) pop(q));  
+        char* el = (char*) pop(q);
+        if (el == NULL){
+            pthread_mutex_unlock(a->mtx); 
+            break;
+        }
+
+        file = strdup(el);
 
         //printf ("%s\n", file);
         if (strcmp (file, "fine") == 0){ 
@@ -208,11 +223,15 @@ void* thread_worker(void* arg){
         write (client, output, (strlen(output)+1)*sizeof(char)); //messaggio al collector 
         read (client, output, (strlen(output)+1)*sizeof(char)); //leggo il messaggio dal server
         pthread_mutex_unlock(a->mtx); 
+
         free(output);
+        free(el);
+        free(file);
+        file = NULL; 
     }
-    free(file);
     
-     
+    if (file != NULL) free(file);
+
     int cl; 
     SYSCALL_EXIT(close, cl, close(client), " sulla chiusura del client");
     return NULL;  
@@ -225,16 +244,16 @@ int main (int argc, char** argv){
         exit(EXIT_FAILURE); 
     }
     
-   //pid_t pid; 
-   // SYSCALL_EXIT (fork, pid, fork(), "sulla fork"); 
-   // if (pid == 0){
-   //     execv("./c.out", argv); 
-   //     perror ("cannot exec"); 
-   //     exit(EXIT_FAILURE); 
-   // }
+   pid_t pid; 
+    SYSCALL_EXIT (fork, pid, fork(), "sulla fork"); 
+    if (pid == 0){
+        execv("./c.out", argv); 
+        perror ("cannot exec"); 
+        exit(EXIT_FAILURE); 
+    }
 
-    int workers = atoi(argv[2]); 
-    pthread_t tid[workers]; 
+
+    int workers = atoi(argv[2]);  
     Queue_t* q; 
     pthread_mutex_t* mtx = (pthread_mutex_t*)malloc (sizeof(pthread_mutex_t)); 
     pthread_mutex_init(mtx, NULL); 
@@ -250,6 +269,7 @@ int main (int argc, char** argv){
     arg_t arg = {q,mtx};
 
     //workers
+    pthread_t tid[workers];
     for (int i = 0; i < workers; i++){
         int err; 
         if ((err = pthread_create(&tid[i],NULL,thread_worker,&arg)) != 0){

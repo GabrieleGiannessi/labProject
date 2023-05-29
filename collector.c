@@ -83,27 +83,22 @@ void* worker(void* args){
 }
 
 int main (int argc, char** argv){
-    //devo settare i socket e fare le connessioni
+    
+    fprintf (stdout,"n\tavg\tdev\tfile\n");
+    fprintf (stdout,"-----------------------------------------------------------\n");
+
     if (argc != 3){
         fprintf (stdout,"Numero di parametri sbagliato, riprova\n"); 
         exit (EXIT_FAILURE);
     }
-
-    printf ("n\tavg\tdev\tfile\n");
-    printf ("-----------------------------------------------------------\n");
 
     int server = socket (AF_INET, SOCK_STREAM,0); //restituisce un fd
     if (server < 0){
         printf ("Errore creazione del socket"); 
         exit (EXIT_FAILURE); 
     }
-
-    //if (setsockopt(server, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0){
-    //    perror("setsockopt(SO_REUSEADDR) failed");
-    //    exit(EXIT_FAILURE);
-    //}
-    //
     
+    //devo settare i socket e fare le connessioni
     struct sockaddr_in serverAddr;
     serverAddr.sin_family=AF_INET; 
     serverAddr.sin_port=htons(PORT);

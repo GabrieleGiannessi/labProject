@@ -32,6 +32,6 @@ int main(int argc, char** argv){
         exit(EXIT_FAILURE);  
     }
 
-    wait(NULL);
+    wait(NULL); //rilascio le risorse del master
     return 0; 
     }
