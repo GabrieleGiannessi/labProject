@@ -84,7 +84,7 @@ void* worker(void* args){
 
 int main (int argc, char** argv){
 
-    printf ("n\tavg\tdev\tfile\n-----------------------------------------------------------\n");
+   //printf ("n\tavg\tdev\tfile\n-----------------------------------------------------------\n");
    // fflush(stdout);
 
     int server = socket (AF_INET, SOCK_STREAM,0); //restituisce un fd

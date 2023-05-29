@@ -24,6 +24,7 @@ int main(int argc, char** argv){
         exit(EXIT_FAILURE); 
     }
 
+    
     pid_t pid; 
     SYSCALL_EXIT (fork, pid, fork(), " sulla creazione del processo Master"); 
     if (pid == 0){

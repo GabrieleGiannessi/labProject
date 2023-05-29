@@ -206,28 +206,38 @@ void* thread_worker(void* arg){
     while (1){
         pthread_mutex_lock(a->mtx);
         char* el = (char*) pop(q);
+
         if (el == NULL){
+            free(el);
             pthread_mutex_unlock(a->mtx); 
             break;
         }
 
-        file = strdup(el);
+       file = strdup(el);
 
-        //printf ("%s\n", file);
+        //printf ("da stampare: %s\n", file);
+        if (strcmp (file, "tab") == 0){ 
+            char* intestazione  = "n\tavg\tdev\tfile\n-----------------------------------------------------------\n";
+            write (client,intestazione, (strlen(intestazione)+1)*sizeof(char)); //messaggio al collector 
+            read (client, intestazione, (strlen(intestazione)+1)*sizeof(char));
+            pthread_mutex_unlock(a->mtx); 
+            continue;
+        }   
+
         if (strcmp (file, "fine") == 0){ 
             pthread_mutex_unlock(a->mtx); 
             break;
         }   
 
+        pthread_mutex_unlock(a->mtx); 
         char* output = elaboraDati(file);
         write (client, output, (strlen(output)+1)*sizeof(char)); //messaggio al collector 
         read (client, output, (strlen(output)+1)*sizeof(char)); //leggo il messaggio dal server
-        pthread_mutex_unlock(a->mtx); 
-
+        
         free(output);
         free(el);
         free(file);
-        file = NULL; 
+        //file = NULL; 
     }
     
     if (file != NULL) free(file);
@@ -259,7 +269,8 @@ int main (int argc, char** argv){
     pthread_mutex_init(mtx, NULL); 
     q = initQueue();
  
-    char* dir = argv[1];    
+    char* dir = argv[1];  
+    push (q, "tab");  
     pathVisit(dir, q); //inserimento del nome dei file dentro la coda
     for (int i = 0; i < workers; i++){
         push(q, "fine");
