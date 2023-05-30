@@ -17,24 +17,11 @@
 #include <arpa/inet.h>
 #define MAX_LENGTH_PATH 255
 #define N 1024
-/**
- * 
- * Il processo master, prima di creare i thread worker, attraverso una BFS inserisce dentro una struttura dati sincronizzata i dati (nome dei file)
- * I thread worker si occuperanno di accedere alla struttura in modo sincronizzato (usiamo i metodi implementati nella libreria unboundedqueue.h, che risultano essere thread safe)
- * e recuperano i dati, che manderanno al collector attraverso l'uso dei socket.
- * 
- * N.B -> i dati vengono mandati al collector solo quando sono stati finiti di elaborare
- * Devo creare una struttura da condividere tra thread (dentro il produttore)
- * 
- * 
- * Worker -> client
- * 
-*/
 
 typedef struct{
     Queue_t* q; 
     pthread_mutex_t* mtx;
-}arg_t; 
+}arg_t; //Struct usata dai thread client
 
 
 float media (float* a,int length){
@@ -89,7 +76,6 @@ char* elaboraDati(char* pathFile) {
     char buffer[MAX_LENGTH_PATH];
     float* arr = (float*) calloc(MAX_LENGTH_PATH,sizeof(float));
     int count = 0;
-    //char* r = (char*) malloc (MAX_LENGTH_PATH * sizeof (char)); 
     while (fgets(buffer, MAX_LENGTH_PATH, f) != NULL) {  
        char* r = formatta(buffer); 
         
@@ -107,9 +93,7 @@ char* elaboraDati(char* pathFile) {
         }
 
        free(r); // Dealloco la memoria allocata per r
-      // r = (char*) malloc ((MAX_LENGTH_PATH) * sizeof (char)); //devo allocare tanti blocchi per evitare di prendere in considerazione memoria invalida e creare numeri scorretti
-    }
-    //free(r); 
+      } 
 
     float m = media(arr, count);
     float dev = deviazione(arr, m, count);
@@ -145,8 +129,6 @@ void pathVisit(char* dir, Queue_t* q){
         strcat (newPath, "/"); 
         strcat (newPath, dr->d_name);
 
-        //char* copy = strdup(newPath);
-
         if (stat (newPath, &info) == -1){
             perror ("Errore nella stat"); 
             exit(EXIT_FAILURE);
@@ -162,24 +144,19 @@ void pathVisit(char* dir, Queue_t* q){
         if (S_ISREG(info.st_mode)){
             if (strstr(newPath, ".dat") != NULL){
                 push(q,strdup(newPath));
-                //free(newPath);
             } 
         }   
-    
-       //free(copy);
        free(newPath); 
     }
 
-    //free(newPath); 
+    
     closedir(d);   
     return; 
 }
 
 //client
 void* thread_worker(void* arg){
-    /**thread che rappresenta un client: richiede connessione al server tramite i dati della bind, invia i messaggi da far stampare al server e poi
-    * e poi chiude la connessione chiudendo il socket fd
-    */
+
     int client = socket (AF_INET,SOCK_STREAM,0);
     if (client < 0){
         printf ("Errore creazione del socket"); 
@@ -192,7 +169,7 @@ void* thread_worker(void* arg){
     serverAddr.sin_addr.s_addr=inet_addr("172.27.68.197");
     int conn = 0; 
 
-    while ((conn = connect(client,(struct sockaddr*)&serverAddr, sizeof(serverAddr))) == -1 && errno == ENOENT){sleep(1);};
+    while ((conn = connect(client,(struct sockaddr*)&serverAddr, sizeof(serverAddr))) == -1 && errno == ENOENT){};
     if (conn == -1){
         close(client);
         perror ("errore di connessione"); 
@@ -216,7 +193,6 @@ void* thread_worker(void* arg){
        if (file != NULL) free(file);
        file = strdup(el);
 
-        //printf ("da stampare: %s\n", file);
 
         if (strcmp (file, "tab") == 0){ 
             char* intestazione  = "n\tavg\tdev\tfile\n-----------------------------------------------------------\n";
@@ -231,11 +207,10 @@ void* thread_worker(void* arg){
             break;
         }   
 
-        pthread_mutex_unlock(a->mtx); 
+        pthread_mutex_unlock(a->mtx);
         char* output = elaboraDati(file);
         write (client, output, (strlen(output)+1)*sizeof(char)); //messaggio al collector 
         read (client, output, (strlen(output)+1)*sizeof(char)); //leggo il messaggio dal server
-        
         free(output);
         free(el);
     }

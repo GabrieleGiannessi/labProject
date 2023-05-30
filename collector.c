@@ -41,17 +41,14 @@ void deleteArgs(arg_t* arg){
 }
 
 void* worker(void* args){
-    //devo dare la coda condivisa dove prendere i vari socket 
     Queue_t* q = ((arg_t*)args)->q;
     int* fdMax = ((arg_t*)args)->fdMax;
     fd_set* clients = ((arg_t*)args)->clients; 
     fd_set* closed = ((arg_t*)args)->closed;
     pthread_mutex_t* mtx = ((arg_t*)args)->mutex;
-    //int* conn = ((arg_t*)args)->connections;
-     
 
     char buf[N];
-    int* fd = (int*) pop(q);  //puntatore al socket usato dal server per comunicare con un certo client 
+    int* fd = (int*) pop(q); 
     
         if (fd == NULL){  
             return NULL; 
@@ -78,14 +75,10 @@ void* worker(void* args){
             }    
     }
 
-    //(*conn)++; //quando il thread termina abbiamo completato un servizio
     return NULL; 
 }
 
 int main (int argc, char** argv){
-
-   //printf ("n\tavg\tdev\tfile\n-----------------------------------------------------------\n");
-   // fflush(stdout);
 
     int server = socket (AF_INET, SOCK_STREAM,0); //restituisce un fd
     if (server < 0){
@@ -102,9 +95,12 @@ int main (int argc, char** argv){
     int numThread = atoi(argv[2]);
     int r1,r2;
     SYSCALL_EXIT(bind,r1,bind (server,(struct sockaddr*)&serverAddr, sizeof(serverAddr)), " sulla bind\n"); 
-    SYSCALL_EXIT(listen, r2,listen (server, numThread + 1), " sulla listen\n"); //mi metto in ascolto del numero massimo di file che possono esserci dentro la dir corrente
+    SYSCALL_EXIT(listen, r2,listen (server, numThread + 1), " sulla listen\n"); //il server è pronto ad accettare nuove connessioni
 
-    fd_set readFDs, clFDs; //fdset usata dal thread server principale
+
+
+
+    fd_set readFDs, clFDs; //fdset usate dal thread server principale
 
     fd_set* closed = (fd_set*) malloc (sizeof(fd_set));
     FD_ZERO(closed);
@@ -132,7 +128,6 @@ int main (int argc, char** argv){
     for (int i = 0; i < numThread; i++){
         int err;      
         SYSCALL_EXIT(pthread_create,err,pthread_create(&tid[i], NULL, worker, threadArgs), " sulla creazione del %d thread server\n", i);
-       // pthread_detach(tid[i]); //so che il server deve rimanere in attesa, così forzo il fatto che non possa fare la join sui thread
     }
      
     int clientConnessi[numThread]; //array che uso per tenere traccia dei fd aperti (clients)
@@ -161,7 +156,7 @@ int main (int argc, char** argv){
     if (*(threadArgs->connections) == numThread) break; 
 
     int r; 
-    SYSCALL_EXIT(select, r, select(currMax+1,&readFDs,NULL,NULL,NULL), "Facendo la Select\n"); //aspetta che un qualche fd in readFDs sia pronto per la lettura
+    SYSCALL_EXIT(select, r, select(currMax+1,&readFDs,NULL,NULL,NULL), "Facendo la Select\n"); //aspetta che un qualche fd in readFDs che sia pronto per la lettura
 
     for (int i = 0; i < currMax + 1;i++){
         if (FD_ISSET(i, &readFDs)){
